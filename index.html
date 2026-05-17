@@ -1,1 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SURCHI AI</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<style>
+:root {
+  --cyan: #00f7ff;
+  --violet: #7b00ff;
+  --magenta: #ff00aa;
+  --green: #00ff99;
+  --gold: #ffbe00;
+  --bg: #03030a;
+  --surface: rgba(255,255,255,0.03);
+  --border: rgba(255,255,255,0.07);
+  --text-muted: #5a5a72;
+  --text-dim: #9090aa;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: white;
+  overflow-x: hidden;
+}
+
+/* ── ADVANCED BACKGROUND ── */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hexagonal grid overlay */
+.hex-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 0 L56 16 L56 50 L28 66 L0 50 L0 16 Z' fill='none' stroke='rgba(0,247,255,0.04)' stroke-width='0.5'/%3E%3Cpath d='M28 66 L56 82 L56 100' fill='none' stroke='rgba(0,247,255,0.04)' stroke-width='0.5'/%3E%3Cpath d='M0 82 L28 66' fill='none' stroke='rgba(0,247,255,0.04)' stroke-width='0.5'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+  opacity: 0.6;
+  animation: hex-drift 40s linear infinite;
+}
+
+@keyframes hex-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 56px 100px; }
+}
+
+/* Radial ambient glow blobs */
+.glow-blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(120px);
+}
+.glow-blob-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(0,247,255,0.06) 0%, transparent 70%);
+  top: -200px; left: -200px;
+  animation: blob-float 18s ease-in-out infinite;
+}
+.glow-blob-2 {
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, rgba(123,0,255,0.05) 0%, transparent 70%);
+  bottom: -300px; right: -300px;
+  animation: blob-float 22s ease-in-out infinite reverse;
+}
+.glow-blob-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(255,0,170,0.04) 0%, transparent 70%);
+  top: 40%; left: 40%;
+  animation: blob-float 15s ease-in-out infinite 5s;
+}
+
+@keyframes blob-float {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(40px,-30px) scale(1.05); }
+  66%      { transform: translate(-20px,40px) scale(0.97); }
+}
+
+/* Scan-line overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,0.06) 3px,
+    rgba(0,0,0,0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9000;
+}
+
+/* ── LOADER ── */
+#loader {
+  position: fixed; inset: 0;
+  background: #000;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  z-index: 99999;
+  overflow: hidden;
+}
+#loader::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    90deg, transparent, transparent 49px,
+    rgba(0,247,255,0.03) 49px, rgba(0,247,255,0.03) 50px
+  );
+}
+.loader-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.3em;
+  color: var(--cyan); margin-bottom: 24px;
+  animation: blink 0.8s step-start infinite;
+}
+.loader-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem,10vw,8rem);
+  letter-spacing: 0.15em;
+  background: linear-gradient(135deg,#fff 0%,var(--cyan) 50%,var(--violet) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 44px;
+}
+.loader-bar {
+  width: min(320px, 80vw); height: 1px;
+  background: rgba(255,255,255,0.1); position: relative; overflow: hidden;
+}
+.loader-fill {
+  height: 100%;
+  background: linear-gradient(90deg,var(--cyan),var(--violet));
+  animation: load 3.8s cubic-bezier(0.25,0.1,0.25,1) forwards;
+  box-shadow: 0 0 20px var(--cyan);
+}
+.loader-percent {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; color: var(--text-muted);
+  margin-top: 12px; letter-spacing: 0.2em;
+}
+@keyframes load   { 100% { width: 100%; } }
+@keyframes blink  { 50% { opacity: 0; } }
+
+/* ── NAV ── */
+nav {
+  position: fixed; width: 100%;
+  padding: 0 5%; height: 68px;
+  display: flex; justify-content: space-between; align-items: center;
+  z-index: 1000;
+  border-bottom: 1px solid var(--border);
+}
+nav::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(3,3,10,0.75); backdrop-filter: blur(24px); z-index: -1;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.35rem; letter-spacing: 0.2em;
+  text-decoration: none; color: white;
+}
+.logo img {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid rgba(0,247,255,0.35);
+}
+.logo-dot {
+  width: 6px; height: 6px;
+  background: var(--cyan); border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,247,255,0.6); }
+  50%      { box-shadow: 0 0 0 6px rgba(0,247,255,0); }
+}
+.nav-links {
+  display: flex; gap: 28px; list-style: none;
+}
+.nav-links a {
+  color: var(--text-dim); text-decoration: none;
+  font-size: 0.72rem; letter-spacing: 0.12em;
+  font-family: 'Space Mono', monospace;
+  text-transform: uppercase; transition: color 0.2s;
+  position: relative;
+}
+.nav-links a::after {
+  content: ''; position: absolute; bottom: -4px; left: 0;
+  width: 0; height: 1px; background: var(--cyan); transition: width 0.3s;
+}
+.nav-links a:hover { color: white; }
+.nav-links a:hover::after { width: 100%; }
+
+/* Hamburger */
+.nav-toggle {
+  display: none; flex-direction: column; gap: 5px;
+  background: none; border: none; cursor: pointer; padding: 4px;
+}
+.nav-toggle span {
+  display: block; width: 22px; height: 1px;
+  background: white; transition: all 0.3s;
+}
+.nav-toggle.open span:nth-child(1) { transform: rotate(45deg) translate(4px,4px); }
+.nav-toggle.open span:nth-child(2) { opacity: 0; }
+.nav-toggle.open span:nth-child(3) { transform: rotate(-45deg) translate(4px,-4px); }
+
+.mobile-menu {
+  display: none; position: fixed;
+  top: 68px; left: 0; right: 0;
+  background: rgba(3,3,10,0.97); backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 24px 5%; z-index: 999;
+  flex-direction: column; gap: 20px;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  color: var(--text-dim); text-decoration: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem; letter-spacing: 0.15em; text-transform: uppercase;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  transition: color 0.2s;
+}
+.mobile-menu a:hover { color: white; }
+
+.launch-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: white;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase;
+  cursor: pointer; padding: 9px 20px; border-radius: 2px;
+  transition: all 0.3s; position: relative; overflow: hidden;
+  white-space: nowrap;
+}
+.launch-btn::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--cyan); transform: translateX(-101%); transition: transform 0.3s;
+}
+.launch-btn:hover { color: #000; border-color: var(--cyan); }
+.launch-btn:hover::before { transform: translateX(0); }
+.launch-btn span { position: relative; z-index: 1; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 110px 5% 80px;
+  gap: 60px; position: relative; overflow: hidden;
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 28px;
+  padding: 7px 14px; border: 1px solid rgba(0,247,255,0.2);
+  border-radius: 2px; background: rgba(0,247,255,0.04);
+}
+.hero-tag-dot { width:5px;height:5px;background:var(--cyan);border-radius:50%;animation:blink 1s infinite; }
+.hero h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem,6.5vw,7rem);
+  line-height: 0.95; letter-spacing: 0.04em;
+  text-transform: uppercase; margin-bottom: 32px;
+}
+.hero h1 .line-accent {
+  display: block;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero h1 .line-stroke {
+  display: block;
+  -webkit-text-stroke: 1px rgba(255,255,255,0.3);
+  -webkit-text-fill-color: transparent;
+}
+.hero p {
+  font-size: 0.92rem; line-height: 1.9; color: var(--text-dim);
+  margin-bottom: 44px; max-width: 480px;
+}
+.hero-buttons { display: flex; gap: 14px; flex-wrap: wrap; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: white; color: #000;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;
+  text-decoration: none; padding: 14px 28px; border-radius: 2px;
+  font-weight: 700; transition: all 0.3s; position: relative; overflow: hidden;
+}
+.btn-primary::after { content: '→'; transition: transform 0.3s; }
+.btn-primary:hover { background: var(--cyan); }
+.btn-primary:hover::after { transform: translateX(4px); }
+
+/* Hero visual side */
+.hero-visual {
+  position: relative; height: 500px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hero-orb {
+  position: absolute; width: 360px; height: 360px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,rgba(0,247,255,0.15),transparent 60%),
+              radial-gradient(circle at 70% 70%,rgba(123,0,255,0.15),transparent 60%);
+  border: 1px solid rgba(0,247,255,0.1);
+  animation: orb-spin 12s linear infinite;
+}
+.hero-orb::before, .hero-orb::after {
+  content:'';position:absolute;inset:20px;border-radius:50%;border:1px solid rgba(255,255,255,0.04);
+}
+.hero-orb::after {
+  inset:50px;border-color:rgba(0,247,255,0.08);
+  animation:orb-spin 8s linear infinite reverse;
+}
+@keyframes orb-spin { 100% { transform: rotate(360deg); } }
+
+.hero-data-card {
+  position:absolute;background:rgba(3,3,10,0.92);border:1px solid var(--border);
+  backdrop-filter:blur(20px);padding:18px 22px;border-radius:4px;
+  font-family:'Space Mono',monospace;
+}
+.hero-data-card.top-right { top:40px;right:-10px;min-width:190px; }
+.hero-data-card.bottom-left { bottom:60px;left:-10px;min-width:170px; }
+.data-label { font-size:0.58rem;letter-spacing:0.2em;color:var(--text-muted);text-transform:uppercase;margin-bottom:7px; }
+.data-value { font-size:1.4rem;font-weight:700;color:var(--cyan); }
+.data-change { font-size:0.62rem;color:var(--green);margin-top:4px; }
+
+/* ── TICKER ── */
+.ticker-wrap {
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  background:rgba(0,247,255,0.02);overflow:hidden;padding:13px 0;white-space:nowrap;
+}
+.ticker-track {
+  display:inline-flex;gap:60px;
+  animation:ticker 28s linear infinite;
+}
+.ticker-item { font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:0.15em;color:var(--text-muted);text-transform:uppercase; }
+.ticker-item span { color:var(--cyan);margin-right:7px; }
+@keyframes ticker { 100% { transform: translateX(-50%); } }
+
+/* ── SECTION BASE ── */
+section { padding: 80px 5%; position: relative; }
+
+.section-eyebrow {
+  font-family:'Space Mono',monospace;font-size:0.62rem;
+  letter-spacing:0.35em;text-transform:uppercase;color:var(--cyan);
+  margin-bottom:18px;display:flex;align-items:center;gap:12px;
+}
+.section-eyebrow::before { content:'';width:28px;height:1px;background:var(--cyan); }
+.section-title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(2.2rem,4.5vw,5rem);
+  letter-spacing:0.05em;line-height:1;margin-bottom:20px;text-align:center;
+}
+.section-sub {
+  text-align:center;max-width:620px;margin:0 auto 60px;
+  color:var(--text-dim);font-size:0.9rem;line-height:1.9;
+}
+.section-header { text-align:center;margin-bottom:60px; }
+.section-header .section-eyebrow { justify-content:center; }
+
+/* ── PRODUCTS GRID ── */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2px;
+}
+
+.product-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  padding: 44px 36px;
+  position: relative; overflow: hidden;
+  transition: all 0.4s; cursor: default;
+}
+.product-card::before {
+  content: attr(data-num);
+  position: absolute; top: -20px; right: 24px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 7rem; color: rgba(255,255,255,0.02);
+  line-height: 1; transition: color 0.4s;
+}
+.product-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  transition: width 0.5s ease;
+}
+.product-card:hover { background: rgba(0,247,255,0.03); }
+.product-card:hover::before { color: rgba(0,247,255,0.06); }
+.product-card:hover::after { width: 100%; }
+
+/* SVG icon containers */
+.product-icon {
+  width: 44px; height: 44px;
+  border: 1px solid var(--border); border-radius: 4px;
+  margin-bottom: 26px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.product-icon svg { width: 20px; height: 20px; }
+.product-card:hover .product-icon {
+  border-color: rgba(0,247,255,0.4);
+  box-shadow: 0 0 20px rgba(0,247,255,0.1);
+}
+.product-card h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem; font-weight: 800;
+  margin-bottom: 14px; letter-spacing: -0.01em;
+}
+.product-card p {
+  color: var(--text-dim); font-size: 0.86rem; line-height: 1.85;
+}
+
+/* Staking highlight card */
+.product-card.stake-card {
+  border-color: rgba(0,255,153,0.15);
+  background: rgba(0,255,153,0.02);
+}
+.product-card.stake-card::after {
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+}
+.product-card.stake-card .product-icon {
+  border-color: rgba(0,255,153,0.25);
+}
+.product-card.stake-card:hover {
+  background: rgba(0,255,153,0.04);
+}
+.product-card.stake-card .stake-badge {
+  display: inline-block;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase;
+  background: rgba(0,255,153,0.1); border: 1px solid rgba(0,255,153,0.2);
+  color: var(--green); padding: 3px 8px; border-radius: 2px;
+  margin-top: 14px;
+}
+
+/* ── WHITEPAPER ── */
+#whitepaper {
+  background: linear-gradient(135deg,rgba(0,247,255,0.04),rgba(123,0,255,0.04));
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.whitepaper-inner {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 70px; align-items: center;
+}
+.whitepaper-text h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.2rem,3.8vw,4.5rem);
+  letter-spacing: 0.05em; line-height: 1; margin-bottom: 22px;
+}
+.whitepaper-text p {
+  color: var(--text-dim); line-height: 1.9; font-size: 0.9rem; margin-bottom: 32px;
+}
+.whitepaper-doc {
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  padding: 36px; border-radius: 4px; position: relative; overflow: hidden;
+}
+.whitepaper-doc::before {
+  content: 'PDF'; position: absolute; top: 18px; right: 18px;
+  font-family: 'Space Mono', monospace; font-size: 0.58rem; letter-spacing: 0.2em;
+  color: var(--text-muted); border: 1px solid var(--border); padding: 3px 7px;
+}
+.doc-line { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 13px; border-radius: 2px; }
+.doc-line:nth-child(1){width:80%;} .doc-line:nth-child(2){width:65%;} .doc-line:nth-child(3){width:90%;} .doc-line:nth-child(4){width:55%;} .doc-line:nth-child(5){width:75%;}
+
+/* ── PRESALE ── */
+#presale { position: relative; overflow: hidden; }
+#presale::before {
+  content: 'PRESALE'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem,18vw,20rem);
+  color: rgba(255,255,255,0.012); white-space: nowrap;
+  pointer-events: none; letter-spacing: 0.1em;
+}
+.presale-inner { max-width: 720px; margin: 0 auto; text-align: center; }
+.presale-badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: 'Space Mono', monospace; font-size: 0.65rem;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  background: rgba(255,0,170,0.1); border: 1px solid rgba(255,0,170,0.25);
+  color: var(--magenta); padding: 7px 18px; border-radius: 2px; margin-bottom: 32px;
+}
+.presale-badge::before { content:'';width:6px;height:6px;background:var(--magenta);border-radius:50%;animation:blink 0.8s infinite; }
+.presale-inner h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.2rem,4.5vw,5.5rem);
+  letter-spacing: 0.05em; line-height: 1; margin-bottom: 22px;
+}
+.presale-inner p { color: var(--text-dim); font-size: 0.92rem; line-height: 1.9; margin-bottom: 40px; }
+.presale-box {
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  padding: 40px; text-align: left; position: relative;
+}
+.presale-box h3 { font-family: 'Syne', sans-serif; font-size: 1.15rem; font-weight: 800; margin-bottom: 12px; }
+.presale-box p { color: var(--text-dim); font-size: 0.86rem; line-height: 1.8; margin-bottom: 28px; }
+
+/* ── TERMINAL / SCANNER ── */
+.terminal-wrap { position: relative; max-width: 820px; margin: 0 auto; }
+.terminal-bar {
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-bottom: none;
+  padding: 13px 22px; display: flex; align-items: center; gap: 9px; border-radius: 4px 4px 0 0;
+}
+.t-dot { width: 10px; height: 10px; border-radius: 50%; }
+.t-dot.red{background:#ff5f57;} .t-dot.yellow{background:#febc2e;} .t-dot.green{background:#28c840;}
+.terminal-title { font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--text-muted); margin-left: 8px; letter-spacing: 0.1em; }
+.terminal {
+  background: #010106; border: 1px solid var(--border); border-radius: 0 0 4px 4px;
+  padding: 30px 36px; font-family: 'Space Mono', monospace; font-size: 0.8rem; line-height: 2.2;
+}
+.terminal-line {
+  display: flex; align-items: baseline; gap: 10px;
+  opacity: 0; animation: fadeInLine 0.5s ease forwards;
+  flex-wrap: wrap;
+}
+.terminal-line:nth-child(1){animation-delay:0.2s;} .terminal-line:nth-child(2){animation-delay:0.6s;}
+.terminal-line:nth-child(3){animation-delay:1.0s;} .terminal-line:nth-child(4){animation-delay:1.4s;}
+.terminal-line:nth-child(5){animation-delay:1.8s;} .terminal-line:nth-child(6){animation-delay:2.2s;}
+.terminal-line:nth-child(7){animation-delay:2.6s;}
+@keyframes fadeInLine { from{opacity:0;transform:translateX(-8px);} to{opacity:1;transform:translateX(0);} }
+.t-prefix { color: var(--cyan); font-weight: 700; flex-shrink: 0; }
+.t-text { color: #c0c0d0; flex: 1; min-width: 0; }
+.t-badge {
+  font-size: 0.6rem; letter-spacing: 0.15em; padding: 2px 7px;
+  border-radius: 2px; white-space: nowrap; margin-left: auto;
+}
+.t-badge.bullish{background:rgba(0,255,153,0.1);color:var(--green);border:1px solid rgba(0,255,153,0.2);}
+.t-badge.medium{background:rgba(255,190,0,0.1);color:#ffbe00;border:1px solid rgba(255,190,0,0.2);}
+.t-badge.strong{background:rgba(0,247,255,0.1);color:var(--cyan);border:1px solid rgba(0,247,255,0.2);}
+.t-badge.active{background:rgba(123,0,255,0.15);color:#a855f7;border:1px solid rgba(123,0,255,0.3);}
+.terminal-cursor { display:inline-block;width:8px;height:14px;background:var(--cyan);margin-left:4px;animation:blink 0.7s step-start infinite;vertical-align:middle; }
+
+/* ── HEATMAP ── */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 2px;
+}
+.heat-card {
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  padding: 36px 30px; position: relative; overflow: hidden; transition: all 0.4s;
+}
+.heat-card:hover { background: rgba(0,247,255,0.04); }
+.heat-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg,var(--cyan),var(--violet)); transition: box-shadow 0.6s; }
+.heat-card:hover .heat-bar { box-shadow: 0 0 15px var(--cyan); }
+.heat-label { font-family:'Space Mono',monospace;font-size:0.58rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-muted);margin-bottom:18px; }
+.heat-card h3 { font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;margin-bottom:12px; }
+.heat-card p { font-size:0.83rem;color:var(--text-dim);line-height:1.8; }
+
+/* ── STATS ── */
+.stats-section { border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:70px 5%; }
+.stats { display:grid;grid-template-columns:repeat(4,1fr);gap:0; }
+.stat { padding:44px 36px;border-right:1px solid var(--border);position:relative;overflow:hidden; }
+.stat:last-child { border-right: none; }
+.stat::before { content:'';position:absolute;bottom:0;left:36px;right:36px;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0;transition:opacity 0.4s; }
+.stat:hover::before { opacity:1; }
+.stat-num { font-family:'Bebas Neue',sans-serif;font-size:clamp(2.2rem,3.5vw,4.5rem);letter-spacing:0.05em;background:linear-gradient(135deg,white,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px; }
+.stat p { font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted); }
+
+/* ── TOKEN ALLOCATION ── */
+.allocation-inner { display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center; }
+.allocation-text h2 { font-family:'Bebas Neue',sans-serif;font-size:clamp(2.2rem,3.8vw,4.5rem);letter-spacing:0.05em;line-height:1;margin-bottom:18px; }
+.allocation-text .supply { font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:0.15em;color:var(--text-muted);margin-bottom:36px;text-transform:uppercase; }
+.alloc-item { display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px solid var(--border); }
+.alloc-swatch { width:3px;height:34px;border-radius:2px;flex-shrink:0; }
+.alloc-label { font-size:0.82rem;color:var(--text-dim);flex:1;line-height:1.5; }
+.alloc-pct { font-family:'Bebas Neue',sans-serif;font-size:1.9rem;letter-spacing:0.05em;color:white; }
+.donut-wrap { position:relative;display:flex;align-items:center;justify-content:center; }
+.donut-svg { width:280px;height:280px;transform:rotate(-90deg);filter:drop-shadow(0 0 28px rgba(0,247,255,0.2)); }
+.donut-center { position:absolute;text-align:center; }
+.donut-center-label { font-family:'Space Mono',monospace;font-size:0.58rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px; }
+.donut-center-val { font-family:'Bebas Neue',sans-serif;font-size:1.9rem;letter-spacing:0.05em; }
+
+/* ── ROADMAP ── */
+.roadmap { display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--border); }
+.phase { padding:40px 32px;border-right:1px solid var(--border);position:relative;overflow:hidden;transition:background 0.4s; }
+.phase:last-child { border-right:none; }
+.phase:hover { background:rgba(0,247,255,0.02); }
+.phase-num { font-family:'Bebas Neue',sans-serif;font-size:4.5rem;line-height:1;color:rgba(255,255,255,0.04);margin-bottom:18px;transition:color 0.4s; }
+.phase:hover .phase-num { color:rgba(0,247,255,0.08); }
+.phase h3 { font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:800;letter-spacing:0.05em;margin-bottom:22px;text-transform:uppercase;color:var(--cyan); }
+.phase ul { list-style:none;padding:0; }
+.phase ul li { font-size:0.82rem;color:var(--text-dim);padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:9px; }
+.phase ul li::before { content:'';width:4px;height:4px;background:var(--cyan);border-radius:50%;flex-shrink:0;opacity:0.5; }
+.phase ul li:last-child { border-bottom:none; }
+
+/* ── STAKE SECTION ── */
+#stake { position: relative; overflow: hidden; }
+#stake::before {
+  content: 'STAKE'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem,18vw,20rem);
+  color: rgba(0,255,153,0.015); white-space: nowrap;
+  pointer-events: none; letter-spacing: 0.1em;
+}
+.stake-inner { max-width: 900px; margin: 0 auto; }
+.stake-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 2px; margin-top: 50px;
+}
+.stake-card {
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  padding: 36px 32px; position: relative; overflow: hidden; transition: all 0.4s;
+}
+.stake-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  transition: width 0.5s;
+}
+.stake-card:hover { background: rgba(0,255,153,0.03); }
+.stake-card:hover::after { width: 100%; }
+.stake-card-label {
+  font-family: 'Space Mono', monospace; font-size: 0.6rem;
+  letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px;
+}
+.stake-card h3 { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800; margin-bottom: 12px; }
+.stake-card p { color: var(--text-dim); font-size: 0.84rem; line-height: 1.8; }
+.stake-apr {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.8rem; letter-spacing: 0.05em;
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-top: 12px;
+}
+.stake-cta {
+  text-align: center; margin-top: 50px; padding: 40px;
+  border: 1px solid rgba(0,255,153,0.12);
+  background: rgba(0,255,153,0.02);
+}
+.stake-cta p { color: var(--text-dim); font-size: 0.88rem; line-height: 1.8; margin-bottom: 26px; }
+.btn-stake {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(0,255,153,0.1); color: var(--green);
+  border: 1px solid rgba(0,255,153,0.3);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;
+  text-decoration: none; padding: 14px 28px; border-radius: 2px;
+  font-weight: 700; transition: all 0.3s;
+}
+.btn-stake::after { content: '→'; transition: transform 0.3s; }
+.btn-stake:hover { background: var(--green); color: #000; }
+.btn-stake:hover::after { transform: translateX(4px); }
+
+/* ── SIGN IN ── */
+.signin-wrap { max-width: 500px; margin: 0 auto; }
+.signin-card {
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  padding: 48px 44px; position: relative; overflow: hidden;
+}
+.signin-card h3 { font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:0.1em;margin-bottom:28px; }
+.field-label { font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted);margin-bottom:9px;display:block; }
+.email-input {
+  width:100%;padding:14px 18px;background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);border-radius:2px;color:white;
+  font-family:'Space Mono',monospace;font-size:0.82rem;margin-bottom:20px;outline:none;transition:border-color 0.3s;
+}
+.email-input::placeholder{color:var(--text-muted);}
+.email-input:focus{border-color:rgba(0,247,255,0.4);}
+.btn-submit {
+  width:100%;padding:16px;background:white;color:#000;border:none;
+  font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:0.2em;
+  text-transform:uppercase;font-weight:700;cursor:pointer;transition:background 0.3s;border-radius:2px;
+}
+.btn-submit:hover{background:var(--cyan);}
+
+/* ── FOOTER ── */
+footer { padding:70px 5% 36px;border-top:1px solid var(--border);position:relative;overflow:hidden; }
+.footer-top { display:grid;grid-template-columns:1fr 1fr;gap:70px;margin-bottom:50px; }
+.footer-brand h2 { font-family:'Bebas Neue',sans-serif;font-size:2.8rem;letter-spacing:0.15em;margin-bottom:12px; }
+.footer-brand p { color:var(--text-dim);font-size:0.86rem;line-height:1.8;max-width:320px; }
+.footer-links-grid { display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start; }
+.footer-links-grid a {
+  display:flex;align-items:center;justify-content:center;
+  width:44px;height:44px;
+  border:1px solid var(--border);border-radius:4px;
+  color:var(--text-muted);text-decoration:none;
+  background:rgba(255,255,255,0.02);
+  transition:all 0.25s;
+  position:relative;
+}
+.footer-links-grid a svg { width:18px;height:18px;transition:color 0.25s; }
+.footer-links-grid a:hover { border-color:rgba(0,247,255,0.4);color:var(--cyan);background:rgba(0,247,255,0.06);box-shadow:0 0 16px rgba(0,247,255,0.1); }
+/* Tooltip — fully isolated */
+.footer-links-grid a::before { display:none !important; }
+.footer-links-grid a::after {
+  content: attr(data-label) !important;
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: auto !important; height: auto !important;
+  background: rgba(3,3,10,0.95) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-dim) !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 0.55rem !important;
+  letter-spacing: 0.15em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  padding: 4px 8px !important;
+  border-radius: 2px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.2s !important;
+  z-index: 10 !important;
+}
+.footer-links-grid a:hover::after { opacity: 1 !important; }
+.footer-bottom { display:flex;justify-content:space-between;align-items:center;padding-top:28px;border-top:1px solid var(--border); }
+.footer-bottom-copy { font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.12em;color:var(--text-muted); }
+.footer-big-text { position:absolute;bottom:-18px;left:5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(4rem,12vw,13rem);color:rgba(255,255,255,0.015);letter-spacing:0.1em;pointer-events:none;white-space:nowrap; }
+
+/* Whitepaper float btn */
+.ai-orb {
+  position:fixed;right:24px;bottom:24px;
+  background:white;color:#000;
+  font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.18em;
+  text-transform:uppercase;text-decoration:none;font-weight:700;
+  padding:12px 20px;border-radius:2px;z-index:900;transition:background 0.3s;
+  border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;gap:7px;
+}
+.ai-orb::before { content:'';width:6px;height:6px;background:var(--cyan);border-radius:50%;animation:pulse-dot 1.5s ease-in-out infinite; }
+.ai-orb:hover { background:var(--cyan); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: flex; }
+  .hero { grid-template-columns: 1fr; }
+  .hero-visual { display: none; }
+  .whitepaper-inner { grid-template-columns: 1fr; gap: 36px; }
+  .allocation-inner { grid-template-columns: 1fr; gap: 44px; }
+  .roadmap { grid-template-columns: 1fr 1fr; }
+  .phase { border-bottom: 1px solid var(--border); }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat { border-bottom: 1px solid var(--border); }
+  .footer-top { grid-template-columns: 1fr; gap: 36px; }
+  .stake-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  section { padding: 60px 5%; }
+  .products-grid { grid-template-columns: 1fr; }
+  .heatmap-grid { grid-template-columns: 1fr; }
+  .roadmap { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .footer-bottom { flex-direction: column; gap: 14px; text-align: center; }
+  .ai-orb { right: 16px; bottom: 16px; padding: 10px 16px; }
+  .signin-card { padding: 32px 24px; }
+  .presale-box { padding: 28px 22px; }
+  .donut-svg { width: 220px; height: 220px; }
+  .hero h1 { font-size: clamp(2.6rem, 11vw, 5rem); }
+}
+@media (max-width: 400px) {
+  .stats { grid-template-columns: 1fr; }
+  .stat { border-right: none; }
+}
+
+/* ── STRATEGIC PARTNERS ── */
+.partners-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+.partner-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  padding: 36px 28px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; text-decoration: none;
+  position: relative; overflow: hidden;
+  transition: all 0.4s; cursor: pointer;
+}
+.partner-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  transition: width 0.5s ease;
+}
+.partner-card:hover { background: rgba(0,247,255,0.04); transform: translateY(-2px); }
+.partner-card:hover::after { width: 100%; }
+.partner-logo {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem; letter-spacing: 0.05em;
+  color: var(--cyan);
+  transition: border-color 0.3s, box-shadow 0.3s;
+  overflow: hidden;
+}
+.partner-logo img {
+  width: 28px; height: 28px; object-fit: contain; border-radius: 4px;
+}
+.partner-card:hover .partner-logo {
+  border-color: rgba(0,247,255,0.4);
+  box-shadow: 0 0 20px rgba(0,247,255,0.15);
+}
+.partner-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.95rem; font-weight: 800;
+  color: white; text-align: center;
+}
+.partner-tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.partner-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.15em; text-transform: uppercase;
+  background: rgba(0,247,255,0.08); border: 1px solid rgba(0,247,255,0.2);
+  color: var(--cyan); padding: 3px 8px; border-radius: 2px;
+}
+
+/* ── FUTURE LISTINGS ── */
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+.listing-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  padding: 32px 22px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; text-decoration: none;
+  position: relative; overflow: hidden;
+  transition: all 0.4s;
+}
+.listing-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,190,0,0.04), rgba(255,0,170,0.03));
+  opacity: 0; transition: opacity 0.4s;
+}
+.listing-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--magenta));
+  transition: width 0.5s ease;
+}
+.listing-card:hover { transform: translateY(-2px); }
+.listing-card:hover::before { opacity: 1; }
+.listing-card:hover::after { width: 100%; }
+.listing-logo {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,190,0,0.06);
+  border: 1px solid rgba(255,190,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem; letter-spacing: 0.05em;
+  color: var(--gold);
+  transition: border-color 0.3s, box-shadow 0.3s;
+  overflow: hidden;
+}
+.listing-logo img {
+  width: 26px; height: 26px; object-fit: contain; border-radius: 4px;
+}
+.listing-card:hover .listing-logo {
+  border-color: rgba(255,190,0,0.5);
+  box-shadow: 0 0 20px rgba(255,190,0,0.15);
+}
+.listing-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem; font-weight: 800;
+  color: white; text-align: center;
+}
+.listing-tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.52rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-muted); text-align: center;
+}
+.listing-soon {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.52rem; letter-spacing: 0.15em; text-transform: uppercase;
+  background: rgba(255,190,0,0.08); border: 1px solid rgba(255,190,0,0.2);
+  color: var(--gold); padding: 3px 8px; border-radius: 2px;
+}
+.listings-disclaimer {
+  text-align: center; margin-top: 36px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem; letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 18px; border: 1px solid var(--border);
+  background: rgba(255,190,0,0.02);
+}
+
+@media (max-width: 1100px) {
+  .listings-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 700px) {
+  .partners-grid { grid-template-columns: 1fr 1fr; }
+  .listings-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 400px) {
+  .partners-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- BACKGROUND LAYERS -->
+<div class="hex-overlay"></div>
+<div class="glow-blob glow-blob-1"></div>
+<div class="glow-blob glow-blob-2"></div>
+<div class="glow-blob glow-blob-3"></div>
+<canvas id="bg-canvas"></canvas>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-label">▶ INITIALIZING SURCHI CORE</div>
+  <div class="loader-title">SURCHI AI</div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+  <div class="loader-percent">NEURAL SYSTEMS LOADING...</div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <img src="https://raw.githubusercontent.com/surchiai/surchiai.github.io/refs/heads/main/SURCHI%20logo.jpg" alt="SURCHI">
+    <span>SURCHI AI</span>
+    <div class="logo-dot"></div>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#products">Products</a></li>
+    <li><a href="#scanner">Scanner</a></li>
+    <li><a href="#stake">Stake</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#partners">Partners</a></li>
+    <li><a href="#listings">Listings</a></li>
+    <li><a href="#whitepaper">Whitepaper</a></li>
+    <li><a href="#presale">PinkSale</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+
+  <button class="nav-toggle" id="navToggle" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <button class="launch-btn" onclick="window.location.href='#presale'"><span>Launch App →</span></button>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#products" onclick="closeMenu()">Products</a>
+  <a href="#scanner" onclick="closeMenu()">Scanner</a>
+  <a href="#stake" onclick="closeMenu()">Stake</a>
+  <a href="#roadmap" onclick="closeMenu()">Roadmap</a>
+  <a href="#partners" onclick="closeMenu()">Partners</a>
+  <a href="#listings" onclick="closeMenu()">Listings</a>
+  <a href="#whitepaper" onclick="closeMenu()">Whitepaper</a>
+  <a href="#presale" onclick="closeMenu()">PinkSale</a>
+  <a href="#contact" onclick="closeMenu()">Contact</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-tag"><span class="hero-tag-dot"></span>Autonomous DeFi Intelligence</div>
+    <h1>
+      <span class="line-stroke">The</span>
+      <span class="line-accent">Autonomous</span>
+      Intelligence Layer
+      <span class="line-stroke">For DeFi</span>
+    </h1>
+    <p>AI-powered blockchain intelligence, neural trading systems, whale wallet analytics, DeFi automation, predictive market analysis, and decentralized financial infrastructure.</p>
+    <div class="hero-buttons">
+      <a href="#presale" class="btn-primary">Launch Neural App</a>
+      <a href="#stake" class="btn-primary" style="background:rgba(0,255,153,0.1);color:var(--green);border:1px solid rgba(0,255,153,0.3);">Stake SURCHI</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-orb"></div>
+    <div class="hero-data-card top-right">
+      <div class="data-label">Whale Activity</div>
+      <div class="data-value">↑ HIGH</div>
+      <div class="data-change">▲ 23.4% movement detected</div>
+    </div>
+    <div class="hero-data-card bottom-left">
+      <div class="data-label">Neural Score</div>
+      <div class="data-value">94.7</div>
+      <div class="data-change">▲ BULLISH SIGNAL</div>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-track">
+    <div class="ticker-item"><span>[AI]</span>Whale Wallet Detected</div>
+    <div class="ticker-item"><span>[SOL]</span>Momentum: Strong</div>
+    <div class="ticker-item"><span>[NEURAL]</span>Confidence Rising</div>
+    <div class="ticker-item"><span>[SCAN]</span>Anomaly Detected</div>
+    <div class="ticker-item"><span>[DEFI]</span>Liquidity Shifting</div>
+    <div class="ticker-item"><span>[AI]</span>Market Score: Medium</div>
+    <div class="ticker-item"><span>[STAKE]</span>APR Live</div>
+    <div class="ticker-item"><span>[SURCHI]</span>Presale Incoming</div>
+    <div class="ticker-item"><span>[AI]</span>Whale Wallet Detected</div>
+    <div class="ticker-item"><span>[SOL]</span>Momentum: Strong</div>
+    <div class="ticker-item"><span>[NEURAL]</span>Confidence Rising</div>
+    <div class="ticker-item"><span>[SCAN]</span>Anomaly Detected</div>
+    <div class="ticker-item"><span>[DEFI]</span>Liquidity Shifting</div>
+    <div class="ticker-item"><span>[AI]</span>Market Score: Medium</div>
+    <div class="ticker-item"><span>[STAKE]</span>APR Live</div>
+    <div class="ticker-item"><span>[SURCHI]</span>Presale Incoming</div>
+  </div>
+</div>
+
+<!-- PRODUCTS -->
+<section id="products">
+  <div class="section-header">
+    <div class="section-eyebrow">AI Products</div>
+    <h2 class="section-title">Core AI Products</h2>
+    <p class="section-sub">Powerful autonomous intelligence systems for the next generation of decentralized finance.</p>
+  </div>
+  <div class="products-grid">
+    <div class="product-card" data-num="01">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h3>Surchi Sentinel</h3>
+      <p>Tracks whale wallets, social sentiment, token anomalies, smart money movement, and fear & greed signals in real time.</p>
+    </div>
+    <div class="product-card" data-num="02">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <h3>Neural Trade AI</h3>
+      <p>Autonomous trading intelligence powered by neural chart analysis, trend prediction, and AI market scoring.</p>
+    </div>
+    <div class="product-card" data-num="03">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      </div>
+      <h3>Chain Brain</h3>
+      <p>Advanced blockchain analysis engine for contract scanning, rug detection, wallet analytics, and DeFi monitoring.</p>
+    </div>
+    <div class="product-card" data-num="04">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+      </div>
+      <h3>AI Agent Marketplace</h3>
+      <p>Deploy, monetize, and share autonomous AI agents built for trading, analytics, and blockchain automation.</p>
+    </div>
+    <div class="product-card" data-num="05">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h3>Neural Scanner</h3>
+      <p>Autonomous AI scanner detecting wallet movement, market anomalies, liquidity shifts, and trading opportunities.</p>
+    </div>
+    <div class="product-card" data-num="06">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <h3>AI Sentiment Engine</h3>
+      <p>Tracks social media narratives, fear & greed metrics, and community momentum across crypto ecosystems.</p>
+    </div>
+    <div class="product-card" data-num="07">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="var(--cyan)"><path d="M3 3h18v18H3z M8 12h8 M12 8v8"/></svg>
+      </div>
+      <h3>Whale Monitor</h3>
+      <p>Real-time tracking for institutional activity, large wallet accumulation, and smart money flow.</p>
+    </div>
+    <div class="product-card stake-card" data-num="08">
+      <div class="product-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <h3>SURCHI Stake</h3>
+      <p>Lock your SURCHI tokens to earn passive yield, governance rights, and priority access to new AI product features.</p>
+      <div class="stake-badge">Coming Soon</div>
+    </div>
+  </div>
+</section>
+
+<!-- WHITEPAPER -->
+<section id="whitepaper">
+  <div class="whitepaper-inner">
+    <div class="whitepaper-text">
+      <div class="section-eyebrow">Documentation</div>
+      <h2>Official<br>Whitepaper</h2>
+      <p>Explore the complete SURCHI AI vision, neural infrastructure, token utility, and future decentralized intelligence ecosystem.</p>
+      <a href="https://drive.google.com/file/d/1FfFQRwgX4q4WLGG08kWmQYI2z79uloe4/view?usp=drivesdk" class="btn-primary">Open Whitepaper</a>
+    </div>
+    <div class="whitepaper-doc">
+      <div class="doc-lines">
+        <div class="doc-line"></div><div class="doc-line"></div><div class="doc-line"></div>
+        <div class="doc-line"></div><div class="doc-line"></div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:0.75rem;color:var(--text-dim);line-height:1.9;">
+        <p style="color:white;font-weight:700;margin-bottom:10px;">SURCHI AI Whitepaper</p>
+        <p>Read the official documentation covering AI systems, tokenomics, roadmap, neural products, ecosystem utilities, and decentralized automation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRESALE -->
+<section id="presale">
+  <div class="presale-inner">
+    <div class="presale-badge">Upcoming Launch</div>
+    <h2>Upcoming PinkSale Launch</h2>
+    <p>The SURCHI token presale will launch soon on PinkSale.finance. Join early supporters building the future of AI-powered decentralized finance.</p>
+    <div class="presale-box">
+      <h3>PinkSale.finance</h3>
+      <p>Upcoming public token launch for the SURCHI ecosystem. Stay connected for whitelist updates, launch timing, and community announcements.</p>
+      <a href="https://www.pinksale.finance/" class="btn-primary">Visit PinkSale</a>
+    </div>
+  </div>
+</section>
+
+<!-- SCANNER -->
+<section id="scanner">
+  <div class="section-header">
+    <div class="section-eyebrow">Live Intelligence</div>
+    <h2 class="section-title">Live Neural Scanner</h2>
+    <p class="section-sub">Real-time AI market intelligence powered by autonomous blockchain monitoring.</p>
+  </div>
+  <div class="terminal-wrap">
+    <div class="terminal-bar">
+      <div class="t-dot red"></div>
+      <div class="t-dot yellow"></div>
+      <div class="t-dot green"></div>
+      <div class="terminal-title">surchi-neural-scanner — live feed</div>
+    </div>
+    <div class="terminal">
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Whale Wallet Detected Buying SOL...</span><span class="t-badge bullish">BULLISH</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Sentiment Spike Detected On AI Tokens...</span><span class="t-badge bullish">RISING</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Neural Confidence Rising Across DeFi...</span><span class="t-badge active">ACTIVE</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Large Liquidity Movement Detected...</span><span class="t-badge medium">WATCH</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Autonomous Prediction Engine Active...</span><span class="t-badge active">ONLINE</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Market Volatility Score: <strong style="color:white">MEDIUM</strong></span><span class="t-badge medium">MEDIUM</span></div>
+      <div class="terminal-line"><span class="t-prefix">[AI]</span><span class="t-text">Solana Ecosystem Momentum: <strong style="color:white">STRONG</strong></span><span class="t-badge strong">STRONG</span></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);">
+        <span style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--text-muted);">▶ </span>
+        <span class="terminal-cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HEATMAP -->
+<section id="heatmap">
+  <div class="section-header">
+    <div class="section-eyebrow">Analysis</div>
+    <h2 class="section-title">Neural Heatmap</h2>
+    <p class="section-sub">AI-powered market narrative analysis and sentiment intelligence.</p>
+  </div>
+  <div class="heatmap-grid">
+    <div class="heat-card">
+      <div class="heat-label">Narrative</div><h3>AI Narrative</h3>
+      <p>Bullish momentum detected across AI infrastructure assets.</p>
+      <div class="heat-bar" style="width:82%;"></div>
+    </div>
+    <div class="heat-card">
+      <div class="heat-label">Sentiment</div><h3>DeFi Sentiment</h3>
+      <p>Strong ecosystem engagement and liquidity movement observed.</p>
+      <div class="heat-bar" style="width:74%;background:linear-gradient(90deg,var(--violet),var(--magenta));"></div>
+    </div>
+    <div class="heat-card">
+      <div class="heat-label">Activity</div><h3>Meme Coin Activity</h3>
+      <p>High social velocity and speculative trading pressure detected.</p>
+      <div class="heat-bar" style="width:91%;background:linear-gradient(90deg,var(--magenta),#ff6600);"></div>
+    </div>
+    <div class="heat-card">
+      <div class="heat-label">Momentum</div><h3>Solana Momentum</h3>
+      <p>Neural systems indicate increasing transactional activity.</p>
+      <div class="heat-bar" style="width:67%;background:linear-gradient(90deg,var(--green),var(--cyan));"></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-section">
+  <div class="section-eyebrow" style="justify-content:center;margin-bottom:44px;">Neural Metrics</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-num">12M+</div><p>AI Signals Generated</p></div>
+    <div class="stat"><div class="stat-num">950K+</div><p>Wallets Analyzed</p></div>
+    <div class="stat"><div class="stat-num">3.4M+</div><p>Tokens Tracked</p></div>
+    <div class="stat"><div class="stat-num">500K+</div><p>Community Nodes</p></div>
+  </div>
+</div>
+
+<!-- STAKE SECTION -->
+<section id="stake">
+  <div class="section-header">
+    <div class="section-eyebrow">Earn</div>
+    <h2 class="section-title">Stake SURCHI</h2>
+    <p class="section-sub">Lock your SURCHI tokens to earn passive rewards, gain governance voting power, and unlock exclusive AI product features.</p>
+  </div>
+  <div class="stake-inner">
+    <div class="stake-grid">
+      <div class="stake-card">
+        <div class="stake-card-label">Flexible Staking</div>
+        <h3>Flexible Pool</h3>
+        <p>Stake and unstake anytime. No lockup required. Earn base rewards while maintaining full liquidity of your SURCHI tokens.</p>
+        <div class="stake-apr">~TBA%<span style="font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--text-muted);"> APR</span></div>
+      </div>
+      <div class="stake-card">
+        <div class="stake-card-label">Locked Staking</div>
+        <h3>Neural Lock Pool</h3>
+        <p>Lock SURCHI for 30, 90, or 180 days for boosted yields, governance voting multipliers, and early access to new product launches.</p>
+        <div class="stake-apr">~TBA%<span style="font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--text-muted);"> APR</span></div>
+      </div>
+    </div>
+    <div class="stake-cta">
+      <p>Staking goes live at the SURCHI token launch. Complete the presale to be among the first to stake and earn in the neural economy.</p>
+      <a href="#presale" class="btn-stake">Join Presale to Stake</a>
+    </div>
+  </div>
+</section>
+
+<!-- TOKEN ALLOCATION -->
+<section id="allocation">
+  <div class="allocation-inner">
+    <div class="allocation-text">
+      <div class="section-eyebrow">Tokenomics</div>
+      <h2>Token<br>Allocation</h2>
+      <div class="supply">Total Supply: 19,897,905 $SURCHI</div>
+      <div class="alloc-item">
+        <div class="alloc-swatch" style="background:var(--cyan);"></div>
+        <div class="alloc-label">Presale</div>
+        <div class="alloc-pct">64%</div>
+      </div>
+      <div class="alloc-item">
+        <div class="alloc-swatch" style="background:var(--violet);"></div>
+        <div class="alloc-label">Liquidity</div>
+        <div class="alloc-pct">30%</div>
+      </div>
+      <div class="alloc-item">
+        <div class="alloc-swatch" style="background:var(--magenta);"></div>
+        <div class="alloc-label">Development / DEX Listing / Marketing & Partnerships</div>
+        <div class="alloc-pct">6%</div>
+      </div>
+    </div>
+    <div class="donut-wrap">
+      <svg class="donut-svg" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="28"/>
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#00f7ff" stroke-width="28"
+          stroke-dasharray="502.65 785.4" stroke-dashoffset="0"
+          style="filter:drop-shadow(0 0 8px #00f7ff88)"/>
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#7b00ff" stroke-width="28"
+          stroke-dasharray="235.62 785.4" stroke-dashoffset="-502.65"
+          style="filter:drop-shadow(0 0 8px #7b00ff66)"/>
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#ff00aa" stroke-width="28"
+          stroke-dasharray="47.12 785.4" stroke-dashoffset="-738.27"
+          style="filter:drop-shadow(0 0 8px #ff00aa66)"/>
+      </svg>
+      <div class="donut-center">
+        <div class="donut-center-label">Total Supply</div>
+        <div class="donut-center-val">19.9M</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="section-header">
+    <div class="section-eyebrow">Vision</div>
+    <h2 class="section-title">Roadmap</h2>
+  </div>
+  <div class="roadmap">
+    <div class="phase">
+      <div class="phase-num">01</div>
+      <h3>Phase 1 — Neural Genesis</h3>
+      <ul>
+        <li>Website Launch</li><li>Community Expansion</li>
+        <li>SURCHI Deployment</li><li>Brand Infrastructure</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">02</div>
+      <h3>Phase 2 — AI Intelligence</h3>
+      <ul>
+        <li>Neural Dashboard</li><li>Signal Systems</li>
+        <li>Wallet Scanner</li><li>Trading Intelligence</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">03</div>
+      <h3>Phase 3 — Autonomous Agents</h3>
+      <ul>
+        <li>AI Trading Bots</li><li>Marketplace Launch</li>
+        <li>Staking Goes Live</li><li>Developer APIs</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">04</div>
+      <h3>Phase 4 — Neural Economy</h3>
+      <ul>
+        <li>Governance Layer</li><li>Revenue Sharing</li>
+        <li>Enterprise AI</li><li>Global Scaling</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- STRATEGIC PARTNERS -->
+<section id="partners">
+  <div class="section-header">
+    <div class="section-eyebrow">Ecosystem</div>
+    <h2 class="section-title">Strategic Partners</h2>
+    <p class="section-sub">Integrated with leading DeFi infrastructure, analytics platforms, and launchpad networks.</p>
+  </div>
+  <div class="partners-grid">
+    <a href="https://www.dexview.com" target="_blank" class="partner-card">
+      <div class="partner-logo"><img src="https://www.google.com/s2/favicons?domain=dexview.com&sz=64" alt="DexView" onerror="this.parentElement.textContent='DV'"></div>
+      <div class="partner-name">DexView</div>
+      <div class="partner-tag">Analytics & Charting</div>
+      <div class="partner-badge">Partner</div>
+    </a>
+    <a href="https://www.pinksale.finance" target="_blank" class="partner-card">
+      <div class="partner-logo"><img src="https://www.google.com/s2/favicons?domain=pinksale.finance&sz=64" alt="PinkSale" onerror="this.parentElement.textContent='PS'"></div>
+      <div class="partner-name">PinkSale</div>
+      <div class="partner-tag">Launchpad</div>
+      <div class="partner-badge">Partner</div>
+    </a>
+    <a href="https://raydium.io/" target="_blank" class="partner-card">
+      <div class="partner-logo"><img src="https://www.google.com/s2/favicons?domain=raydium.io&sz=64" alt="Raydium" onerror="this.parentElement.textContent='RY'"></div>
+      <div class="partner-name">Raydium</div>
+      <div class="partner-tag">DEX & AMM</div>
+      <div class="partner-badge">Partner</div>
+    </a>
+  </div>
+</section>
+
+<!-- FUTURE LISTINGS -->
+<section id="listings" style="border-top:1px solid var(--border);">
+  <div class="section-header">
+    <div class="section-eyebrow">Exchanges</div>
+    <h2 class="section-title">Future Listing Partners</h2>
+    <p class="section-sub">SURCHI is targeting listings on leading centralized exchanges to maximize accessibility and liquidity for our community.</p>
+  </div>
+  <div class="listings-grid">
+    <a href="https://www.binance.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=binance.com&sz=64" alt="Binance" onerror="this.parentElement.textContent='BN'"></div>
+      <div class="listing-name">Binance</div>
+      <div class="listing-tag">World's Largest CEX</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.bybit.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=bybit.com&sz=64" alt="Bybit" onerror="this.parentElement.textContent='BY'"></div>
+      <div class="listing-name">Bybit</div>
+      <div class="listing-tag">Top Derivatives Exchange</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.bitget.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=bitget.com&sz=64" alt="Bitget" onerror="this.parentElement.textContent='BG'"></div>
+      <div class="listing-name">Bitget</div>
+      <div class="listing-tag">Copy Trading Platform</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.mexc.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=mexc.com&sz=64" alt="MEXC" onerror="this.parentElement.textContent='MX'"></div>
+      <div class="listing-name">MEXC</div>
+      <div class="listing-tag">High-Speed Exchange</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.lbank.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=lbank.com&sz=64" alt="LBank" onerror="this.parentElement.textContent='LB'"></div>
+      <div class="listing-name">LBank</div>
+      <div class="listing-tag">Global CEX</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.kucoin.com" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=kucoin.com&sz=64" alt="KuCoin" onerror="this.parentElement.textContent='KC'"></div>
+      <div class="listing-name">KuCoin</div>
+      <div class="listing-tag">People's Exchange</div>
+      <div class="listing-soon">Target</div>
+    </a>
+    <a href="https://www.gate.io" target="_blank" class="listing-card">
+      <div class="listing-logo"><img src="https://www.google.com/s2/favicons?domain=gate.io&sz=64" alt="Gate.io" onerror="this.parentElement.textContent='GT'"></div>
+      <div class="listing-name">Gate.io</div>
+      <div class="listing-tag">Multi-Asset Exchange</div>
+      <div class="listing-soon">Target</div>
+    </a>
+  </div>
+  <div class="listings-disclaimer">
+    ⚠ Future listing targets are aspirational goals and do not constitute confirmed agreements. Listings are subject to exchange requirements and market conditions.
+  </div>
+</section>
+
+<!-- SIGN IN -->
+<section id="signin">
+  <div class="section-header">
+    <div class="section-eyebrow">Access</div>
+    <h2 class="section-title">Join SURCHI AI</h2>
+  </div>
+  <div class="signin-wrap">
+    <div class="signin-card">
+      <h3>Connect Your Email</h3>
+      <label class="field-label">Email Address</label>
+      <input type="email" class="email-input" placeholder="you@example.com">
+      <button type="button" class="btn-submit">Connect Email →</button>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="contact">
+  <div class="footer-big-text">SURCHI</div>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <h2>SURCHI AI</h2>
+      <p>Building the neural operating system for decentralized finance.</p>
+    </div>
+    <div class="footer-links-grid">
+      <!-- Globe / Website -->
+      <a href="https://surchi.xyz" data-label="Website" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </a>
+      <!-- GitHub / Whitepaper -->
+      <a href="https://drive.google.com/file/d/1FfFQRwgX4q4WLGG08kWmQYI2z79uloe4/view?usp=drivesdk" data-label="Whitepaper" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+      </a>
+      <!-- X / Twitter -->
+      <a href="https://x.com/surchicoin" data-label="X / Twitter" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <!-- Discord -->
+      <a href="https://discord.gg/DtFYCzCUk" data-label="Discord" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+      </a>
+      <!-- Instagram -->
+      <a href="https://www.instagram.com/surchiai" data-label="Instagram" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/></svg>
+      </a>
+      <!-- Facebook -->
+      <a href="https://www.facebook.com/profile.php?id=61556383735432" data-label="Facebook" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+      </a>
+      <!-- WhatsApp -->
+      <a href="https://whatsapp.com/channel/0029VbCM41CISTkMkuao4Y0Z" data-label="WhatsApp" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+      </a>
+      <!-- Docs -->
+      <a href="https://drive.google.com/file/d/1FGCbMPLNo-UHcVEyT68tXD5gh0MMobk9/view?usp=drivesdk" data-label="Docs" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-bottom-copy">© 2026 SURCHI AI. All Rights Reserved.</div>
+    <div style="font-family:'Space Mono',monospace;font-size:0.58rem;letter-spacing:0.2em;color:var(--text-muted);">NEURAL SYSTEMS ONLINE ●</div>
+  </div>
+</footer>
+
+<!-- WHITEPAPER FLOAT -->
+<a href="https://drive.google.com/file/d/1FfFQRwgX4q4WLGG08kWmQYI2z79uloe4/view?usp=drivesdk" class="ai-orb">WHITEPAPER</a>
+
+<script>
+// ── MOBILE MENU ──
+const toggle = document.getElementById('navToggle');
+const menu   = document.getElementById('mobileMenu');
+toggle.addEventListener('click', () => {
+  toggle.classList.toggle('open');
+  menu.classList.toggle('open');
+});
+function closeMenu() {
+  toggle.classList.remove('open');
+  menu.classList.remove('open');
+}
+
+// ── LOADER ──
+setTimeout(() => {
+  const l = document.getElementById('loader');
+  l.style.transition = 'opacity 0.8s ease';
+  l.style.opacity = '0';
+  setTimeout(() => l.style.display = 'none', 800);
+}, 4000);
+
+// ── THREE.JS BACKGROUND ──
+const scene    = new THREE.Scene();
+const camera   = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Particle field – cyan & violet mix
+const N = 1800;
+const pos   = new Float32Array(N * 3);
+const colors = new Float32Array(N * 3);
+for (let i = 0; i < N; i++) {
+  pos[i*3]   = (Math.random() - 0.5) * 260;
+  pos[i*3+1] = (Math.random() - 0.5) * 260;
+  pos[i*3+2] = (Math.random() - 0.5) * 260;
+  // Alternate between cyan and violet hues
+  if (Math.random() > 0.55) {
+    colors[i*3]=0; colors[i*3+1]=0.97; colors[i*3+2]=1;   // cyan
+  } else {
+    colors[i*3]=0.48; colors[i*3+1]=0; colors[i*3+2]=1;   // violet
+  }
+}
+const pgeo = new THREE.BufferGeometry();
+pgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+pgeo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+const pmat = new THREE.PointsMaterial({ size: 0.18, transparent: true, opacity: 0.45, vertexColors: true, sizeAttenuation: true });
+const particles = new THREE.Points(pgeo, pmat);
+scene.add(particles);
+
+// Icosahedron wireframe — geometric depth element
+const icoGeo = new THREE.IcosahedronGeometry(14, 1);
+const icoMat = new THREE.MeshBasicMaterial({ color: 0x00f7ff, wireframe: true, transparent: true, opacity: 0.04 });
+const ico = new THREE.Mesh(icoGeo, icoMat);
+ico.position.set(-22, 10, -30);
+scene.add(ico);
+
+// Torus knot — back-layer accent
+const tkGeo = new THREE.TorusKnotGeometry(7, 1.6, 100, 14);
+const tkMat = new THREE.MeshBasicMaterial({ color: 0x7b00ff, wireframe: true, transparent: true, opacity: 0.035 });
+const tk = new THREE.Mesh(tkGeo, tkMat);
+tk.position.set(22, -8, -25);
+scene.add(tk);
+
+camera.position.z = 55;
+let scrollY = 0;
+window.addEventListener('scroll', () => { scrollY = window.scrollY; });
+
+// Subtle mouse parallax
+let mx = 0, my = 0;
+document.addEventListener('mousemove', e => {
+  mx = (e.clientX / window.innerWidth  - 0.5) * 0.6;
+  my = (e.clientY / window.innerHeight - 0.5) * 0.4;
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  particles.rotation.y += 0.0003;
+  particles.rotation.x += 0.00008;
+  particles.rotation.y += mx * 0.0008;
+  particles.rotation.x += my * 0.0005;
+  ico.rotation.x += 0.004;
+  ico.rotation.y += 0.006;
+  tk.rotation.x  += 0.003;
+  tk.rotation.y  += 0.005;
+  camera.position.y = -scrollY * 0.008;
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
