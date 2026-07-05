@@ -1,1 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SURCHI Airdrop</title>
 
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: radial-gradient(circle at top, #0b0f14, #05070a);
+    color: #fff;
+}
+
+/* HERO */
+.hero {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.logo {
+    width: 80px;
+    border-radius: 16px;
+    box-shadow: 0 0 20px #00ff88;
+}
+
+h1 {
+    color: #00ff88;
+    text-shadow: 0 0 15px #00ff88;
+}
+
+.subtitle {
+    max-width: 600px;
+    margin: auto;
+    opacity: 0.8;
+}
+
+/* PROGRESS */
+.progress {
+    margin-top: 20px;
+    background: #111;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.bar {
+    height: 12px;
+    width: 0%;
+    background: linear-gradient(90deg,#00ff88,#00ffaa);
+    transition: 0.4s;
+}
+
+/* TASKS */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+    gap: 12px;
+    padding: 20px;
+}
+
+.task {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,255,136,0.2);
+    padding: 15px;
+    border-radius: 14px;
+    cursor: pointer;
+    position: relative;
+    transition: 0.3s;
+    text-align: center;
+}
+
+.task:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 15px rgba(0,255,136,0.3);
+}
+
+.task.done {
+    border-color: #00ff88;
+    box-shadow: 0 0 18px #00ff88;
+}
+
+.check {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    color: #00ff88;
+    display: none;
+}
+
+.task.done .check {
+    display: block;
+}
+
+/* LINKS */
+.links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(140px,1fr));
+    gap: 10px;
+    padding: 20px;
+}
+
+.link {
+    padding: 12px;
+    text-align: center;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,255,136,0.2);
+    cursor: pointer;
+}
+
+/* CARDS */
+.card {
+    margin: 20px;
+    padding: 15px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* WARNING */
+.warning {
+    border: 1px solid red;
+    box-shadow: 0 0 12px red;
+}
+
+/* BUTTON */
+.btn {
+    width: 90%;
+    margin: 20px auto;
+    display: block;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    background: #222;
+    color: #777;
+    font-weight: bold;
+    cursor: not-allowed;
+}
+
+.btn.active {
+    background: linear-gradient(90deg,#00ff88,#00ffaa);
+    color: #000;
+    box-shadow: 0 0 25px #00ff88;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="hero">
+    <img class="logo" src="https://via.placeholder.com/80" />
+    <h1>SURCHI Community Airdrop</h1>
+    <p class="subtitle">
+        Become one of the earliest SURCHI supporters. Complete tasks to qualify for rewards.
+    </p>
+
+    <div class="progress">
+        <div class="bar" id="bar"></div>
+    </div>
+    <p id="text">0/6 Tasks Completed</p>
+</div>
+
+<!-- TASKS -->
+<div class="grid">
+
+<div class="task" onclick="toggle(this)">🌐 Website <span class="check">✔</span></div>
+<div class="task" onclick="toggle(this)">𝕏 SURCHI X <span class="check">✔</span></div>
+<div class="task" onclick="toggle(this)">📢 Telegram <span class="check">✔</span></div>
+<div class="task" onclick="toggle(this)">💬 Discord <span class="check">✔</span></div>
+<div class="task" onclick="toggle(this)">🪙 BUSHGUY X <span class="check">✔</span></div>
+<div class="task" onclick="toggle(this)">🚀 BUSHGUY TG <span class="check">✔</span></div>
+
+</div>
+
+<!-- OFFICIAL LINKS -->
+<div class="card">
+<h3>🔗 Official Links</h3>
+
+<div class="links">
+<div class="link" onclick="openLink('https://surchi.xyz/')">🌐 Website</div>
+<div class="link" onclick="openLink('https://Whitepaper.surchi.xyz/')">📄 Whitepaper</div>
+<div class="link" onclick="openLink('https://x.com/suchicoin')">𝕏 X</div>
+<div class="link" onclick="openLink('https://t.me/SurchiWeb3Community')">📢 Telegram</div>
+<div class="link" onclick="openLink('https://discord.gg/T8sURwbcAv')">💬 Discord</div>
+<div class="link" onclick="openLink('https://x.com/Bushguymeme')">🪙 BUSHGUY X</div>
+<div class="link" onclick="openLink('https://t.me/bushguymeme')">🚀 BUSHGUY TG</div>
+</div>
+
+</div>
+
+<!-- BENEFITS -->
+<div class="card">
+<h3>🎁 Benefits</h3>
+<p>🎁 Airdrop Allocation</p>
+<p>🏅 Early Supporter Badge</p>
+<p>⚡ Priority Access</p>
+<p>💎 Ecosystem Rewards</p>
+<p>🚀 Community Perks</p>
+</div>
+
+<!-- RULES -->
+<div class="card">
+<h3>📜 Rules</h3>
+<p>✔ One wallet per user</p>
+<p>✔ No bots</p>
+<p>✔ No fake accounts</p>
+<p>✔ Verified rewards only</p>
+</div>
+
+<!-- SECURITY -->
+<div class="card warning">
+<h3>⚠ Security</h3>
+<p>Never share seed phrase or private keys.</p>
+</div>
+
+<!-- BUTTON -->
+<button id="btn" class="btn" disabled onclick="join()">
+🎁 JOIN WAITING LIST
+</button>
+
+<script>
+
+let done = 0;
+const total = 6;
+
+function toggle(el){
+    if(!el.classList.contains("done")){
+        el.classList.add("done");
+        done++;
+    } else {
+        el.classList.remove("done");
+        done--;
+    }
+
+    update();
+}
+
+function update(){
+    document.getElementById("text").innerText = `${done}/6 Tasks Completed`;
+    document.getElementById("bar").style.width = (done/total)*100 + "%";
+
+    if(done === total){
+        let btn = document.getElementById("btn");
+        btn.disabled = false;
+        btn.classList.add("active");
+    }
+}
+
+function join(){
+    if(done === total){
+        window.open("https://tally.so/r/LZy9MO","_blank");
+    }
+}
+
+function openLink(url){
+    window.open(url,"_blank");
+}
+
+</script>
+
+</body>
+  </html>
